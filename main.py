@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import yaml
 import wandb
 import argparse
 
@@ -30,7 +31,15 @@ warnings.filterwarnings('ignore')
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
-def main(args):
+class obj(object):
+    def __init__(self, d):
+        for k, v in d.items():
+            if isinstance(k, (list, tuple)):
+                setattr(self, k, [obj(x) if isinstance(x, dict) else x for x in v])
+            else:
+                setattr(self, k, obj(v) if isinstance(v, dict) else v)
+
+def main(config):
     df_train = pd.read_csv('open/train.csv')
     df_test = pd.read_csv('open/test.csv')
     sub = pd.read_csv('open/sample_submission.csv')
@@ -110,7 +119,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='parser')
     arg = parser.add_argument
     
-    # arg('--VER', type=str, default='baseline')
+    arg('--conf_path', type=str, default='base_config.yaml')
 
 
     # arg('--SEED', type=int, default=42)
@@ -133,6 +142,11 @@ if __name__ == '__main__':
     # arg('--OUTPUT_DIR', type=str, default='models/') 
 
     args = parser.parse_args()
+    
+    with open('../conf/'+args.conf_path) as f:
+        conf_yaml = yaml.safe_load(f)
 
-    seed_everything(args.SEED)
-    main(args)
+    config = obj(conf_yaml)
+
+    seed_everything(config.seed)
+    main(config)
