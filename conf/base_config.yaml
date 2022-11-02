@@ -1,0 +1,17 @@
+ver: 'baseline'
+model: 'CNN_Model'
+dataset: 'base'
+out_dir: '../output/'
+data_path: '.open/'
+gpu:
+  use: True
+  id: 0
+train_params:
+  seed: 42
+  epochs: 10
+  batch_size: 32
+  init_lr: 1e-3
+  min_lr: 1e-6
+  weight_decay: 0.0
+data:
+  num_workers: 0
