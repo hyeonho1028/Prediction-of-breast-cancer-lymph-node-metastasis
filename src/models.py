@@ -10,7 +10,7 @@ class CNNModel(nn.Module):
 
         self.config = args
         chans = 3
-        num_classes = self.config.num_classes
+        num_classes = self.config.data.num_classes
 
         self.model = timm.create_model(model_name='tf_efficientnet_b0_ns', pretrained=True, in_chans=chans)
         # tf_efficientnet_b0_ns, efficientnet_b1_pruned, vit_base_patch16_224, tf_efficientnetv2_s_in21k
@@ -36,9 +36,7 @@ class CNNModel(nn.Module):
             # self.model.last_linear = nn.Linear(nb_ft, num_classes)
             self.model.head = nn.Identity()    
         
-        self.fc1 = nn.Linear(nb_ft, self.config.num_classes_1)
-        self.fc2 = nn.Linear(nb_ft, self.config.num_classes_2)
-        self.fc3 = nn.Linear(nb_ft, self.config.num_classes)
+        self.fc = nn.Linear(nb_ft, num_classes)
         
         # self.fc = nn.Sequential(
         #                             nn.Linear(512, num_classes),
@@ -47,9 +45,5 @@ class CNNModel(nn.Module):
 
     def forward(self, x):
         x = self.model(x)
-        output = self.fc1(x)
-        output2 = self.fc2(x)
-        output3 = self.fc3(x)
-        # output = self.fc(x)
-        
-        return output, output2, output3
+        output = self.fc(x)
+        return output

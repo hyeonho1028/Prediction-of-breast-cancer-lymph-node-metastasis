@@ -12,14 +12,14 @@ from sklearn.model_selection import StratifiedKFold
 
 import torch
 
-# from src import AD_Dataset, Multi_AD_Dataset, train_get_transforms, valid_get_transforms
+from src import BC_Dataset, train_get_transforms, valid_get_transforms
 from src import pl_Wrapper
 
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
+# from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
-from src import seed_everything
+from src import obj, seed_everything, pl_Wrapper
 
 # warnings
 import warnings
@@ -30,24 +30,18 @@ warnings.filterwarnings('ignore')
 
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
-
-class obj(object):
-    def __init__(self, d):
-        for k, v in d.items():
-            if isinstance(k, (list, tuple)):
-                setattr(self, k, [obj(x) if isinstance(x, dict) else x for x in v])
-            else:
-                setattr(self, k, obj(v) if isinstance(v, dict) else v)
-
 def main(config):
     df_train = pd.read_csv('open/train.csv')
     df_test = pd.read_csv('open/test.csv')
     sub = pd.read_csv('open/sample_submission.csv')
 
-    df_train['img_path'] = df_train['img_path'].apply(lambda x: x.replace('./', 'data/'))
-    df_test['img_path'] = df_test['img_path'].apply(lambda x: x.replace('./', 'data/'))
+    df_train['img_path'] = df_train['img_path'].apply(lambda x: x.replace('./', 'open/'))
+    df_test['img_path'] = df_test['img_path'].apply(lambda x: x.replace('./', 'open/'))
+
+    skf = StratifiedKFold(n_splits=config.train_params.folds, random_state=config.train_params.seed, shuffle=True)
+    splits = list(skf.split(df_train, df_train['N_category']))
     
-    for fold in range(5):
+    for fold in config.train_params.selected_folds:
         print('start fold :', fold)
         # args.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
         # logger = WandbLogger(name=f'{args.start_time}_{args.VER}_5fold_{fold}', 
@@ -55,35 +49,37 @@ def main(config):
         #                         config={key:args.__dict__[key] for key in args.__dict__.keys() if '__' not in key},
         #                         )
         
-        # args.train_dataset = Multi_AD_Dataset(
-        #                                 tt, 
-        #                                 [tt['cat1'].map(label2idx_1).values,
-        #                                 tt['cat2'].map(label2idx_2).values,
-        #                                 tt['cat3'].map(label2idx).values],
-        #                                 transform=train_transforms, tokenizer=tokenizer, mode='train')
-        # args.valid_dataset = Multi_AD_Dataset(
-        #                                 vv, 
-        #                                 [vv['cat1'].map(label2idx_1).values,
-        #                                 vv['cat2'].map(label2idx_2).values,
-        #                                 vv['cat3'].map(label2idx).values],
-        #                                 transform=valid_transforms, tokenizer=tokenizer, mode='valid')
-        
-        # # sample weight
-        # target = tt['cat3'].map(label2idx).values
-        # class_sample_count = np.array(
-        #     [len(np.where(target == t)[0]) for t in np.unique(target)])
-        # weight = 1. / class_sample_count
-        # samples_weight = np.array([weight[t] for t in target])
-        
-        # args.samples_weight = torch.from_numpy(samples_weight)
-        # args.samples_weight = args.samples_weight.double()
+        tt = df_train.loc[splits[fold][0]].reset_index(drop=True)
+        vv = df_train.loc[splits[fold][1]].reset_index(drop=True)
+        train_transforms, valid_transforms = train_get_transforms(config.train_params.img_size), valid_get_transforms(config.train_params.img_size)
 
-        # # print(args.train_dataset[0]['img'].shape)
-        # print(args.train_dataset[0]['label'])
+        config.train_dataset = BC_Dataset(tt, transform=train_transforms)
+        config.valid_dataset = BC_Dataset(vv, transform=valid_transforms)
         
-        # if args.DEVICE=='mps':
-        #     from src.trainer import training
-        #     training(args)
+        print(config.train_dataset[0]['img'].shape)
+        print(config.train_dataset[0]['label'])
+        
+        if config.gpu.mps:
+            lr_monitor = LearningRateMonitor(logging_interval='step') # ['epoch', 'step']
+            checkpoints = ModelCheckpoint(config.output_dir + config.ver + '/', 
+                                        #   monitor='total_val_loss', 
+                                        monitor='total_val_f1_score',
+                                        mode='max', 
+                                        filename=f'5fold_{fold}__' + '{epoch}_{total_train_loss:.5f}_{total_train_f1_score:.5f}_{total_val_loss:.5f}_{total_val_f1_score:.5f}')
+            model = pl_Wrapper(config)
+            trainer = pl.Trainer(
+                                max_epochs=config.train_params.epochs, 
+                                accelerator='mps', 
+                                devices=1,
+                                log_every_n_steps=30,
+                                # gradient_clip_val=1000, gradient_clip_algorithm='value', # defalut : [norm, value]
+                                amp_backend='native', precision=16, # amp_backend default : native
+                                callbacks=[checkpoints, lr_monitor], 
+                                # logger=logger
+                                )
+            trainer.fit(model)
+                                
+
         # else:
         #     lr_monitor = LearningRateMonitor(logging_interval='step') # ['epoch', 'step']
         #     checkpoints = ModelCheckpoint(args.OUTPUT_DIR + args.VER + '/', 
@@ -104,10 +100,11 @@ def main(config):
         #                             logger=logger
         #                             ) 
         #     trainer.fit(model)
-        #     del model, trainer, 
-        #     wandb.finish()
+        
+        del model, trainer, 
+        # wandb.finish()
 
-        # break
+        break
 
     
 
@@ -120,7 +117,6 @@ if __name__ == '__main__':
     arg = parser.add_argument
     
     arg('--conf_path', type=str, default='base_config.yaml')
-
 
     # arg('--SEED', type=int, default=42)
     # arg('--DEVICE', type=str, default='cuda', choices=['cpu', 'cuda', 'mps'])
@@ -143,10 +139,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-    with open('../conf/'+args.conf_path) as f:
+    with open('conf/'+args.conf_path) as f:
         conf_yaml = yaml.safe_load(f)
 
     config = obj(conf_yaml)
+    config.train_params.init_lr = float(config.train_params.init_lr)
+    config.train_params.min_lr = float(config.train_params.min_lr)
 
-    seed_everything(config.seed)
+    seed_everything(config.train_params.seed)
     main(config)

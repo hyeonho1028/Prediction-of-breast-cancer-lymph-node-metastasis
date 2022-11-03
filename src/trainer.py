@@ -22,17 +22,16 @@ class pl_Wrapper(pl.LightningModule):
 
         self.config = args
         self.model = CNNModel(args)
-        
         self.criterion = nn.CrossEntropyLoss()
         
-    def forward(self, input_ids, attention_mask=None, token_type_ids=None):
-        output = self.rnn_model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+    def forward(self, imgs):
+        output = self.model(imgs)
         return output
 
     def train_dataloader(self):
         loader = DataLoader(
                             self.config.train_dataset,
-                            batch_size=self.config.BATCH_SIZE,
+                            batch_size=self.config.train_params.batch_size,
                             num_workers=0,
                             shuffle=False,
                             sampler=RandomSampler(self.config.train_dataset),
@@ -45,7 +44,7 @@ class pl_Wrapper(pl.LightningModule):
     def val_dataloader(self):
         loader = DataLoader(
                             self.config.valid_dataset,
-                            batch_size=self.config.VAL_BATCH_SIZE,
+                            batch_size=self.config.train_params.val_batch_size,
                             num_workers=0,
                             shuffle=False,
                             sampler=SequentialSampler(self.config.valid_dataset),
@@ -55,9 +54,7 @@ class pl_Wrapper(pl.LightningModule):
         return loader
     
     def sharing_step(self, batch):
-        pred = self.forward(batch['tokenized_input_ids'], 
-                              batch['tokenized_attention_mask'], 
-                              batch['tokenized_token_type_ids'])
+        pred = self.forward(batch['img'])
         
         loss = self.criterion(pred, batch['label'])
         return pred, loss
@@ -99,11 +96,11 @@ class pl_Wrapper(pl.LightningModule):
         self.log("total_val_f1_score", f1, logger=True)
 
     def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.config.LR, weight_decay=self.config.WEIGHT_DECAY)
+        optimizer = AdamW(self.parameters(), lr=self.config.train_params.init_lr, weight_decay=self.config.train_params.weight_decay)
         # optimizer = Adam(self.parameters(), lr=self.config.LR, weight_decay=self.config.WEIGHT_DECAY)
         
         # num_train_steps = int(len(self.train)/(self.config.BATCH_SIZE*3)*self.config.EPOCHS)
-        num_train_steps = int(len(self.train_dataloader()) * self.config.EPOCHS)
+        num_train_steps = int(len(self.train_dataloader()) * self.config.train_params.epochs)
         # num_train_steps = int(len(self.train_dataloader()) * 30)
         # scheduler = get_linear_schedule_with_warmup(optimizer, 
         #                                             num_warmup_steps=int(num_train_steps*0.1), 
@@ -111,7 +108,7 @@ class pl_Wrapper(pl.LightningModule):
         scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer,
                                                                        num_warmup_steps=int(num_train_steps*0.1), 
                                                                        num_training_steps=num_train_steps,
-                                                                       num_cycles=self.config.sch_cycle)
+                                                                       num_cycles=self.config.train_params.sch_cycle)
         # scheduler_plateau = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=1)
         # scheduler_cosine = CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-6, last_epoch=-1)
         # scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=1, total_epoch=5, after_scheduler=scheduler_cosine)

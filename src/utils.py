@@ -11,3 +11,11 @@ def seed_everything(seed=42):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+class obj(object):
+    def __init__(self, d):
+        for k, v in d.items():
+            if isinstance(k, (list, tuple)):
+                setattr(self, k, [obj(x) if isinstance(x, dict) else x for x in v])
+            else:
+                setattr(self, k, obj(v) if isinstance(v, dict) else v)
