@@ -4,13 +4,13 @@ dataset: 'base'
 output_dir: 'models/'
 data_path: '.open/'
 gpu:
-  mps: True
+  mps: False
   use: True
   id: 0
 train_params:
   seed: 42
-  img_size: 224
-  epochs: 10
+  img_size: 512
+  epochs: 30
   batch_size: 32
   val_batch_size: 64
   init_lr: 1e-3

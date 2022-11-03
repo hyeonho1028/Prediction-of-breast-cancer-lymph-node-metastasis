@@ -16,7 +16,7 @@ from src import BC_Dataset, train_get_transforms, valid_get_transforms
 from src import pl_Wrapper
 
 import pytorch_lightning as pl
-# from pytorch_lightning.loggers import WandbLogger
+
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 from src import obj, seed_everything, pl_Wrapper
@@ -43,30 +43,27 @@ def main(config):
     
     for fold in config.train_params.selected_folds:
         print('start fold :', fold)
-        # args.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
-        # logger = WandbLogger(name=f'{args.start_time}_{args.VER}_5fold_{fold}', 
-        #                         project='AD_clf', 
-        #                         config={key:args.__dict__[key] for key in args.__dict__.keys() if '__' not in key},
-        #                         )
+        config.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
         
         tt = df_train.loc[splits[fold][0]].reset_index(drop=True)
         vv = df_train.loc[splits[fold][1]].reset_index(drop=True)
-        train_transforms, valid_transforms = train_get_transforms(config.train_params.img_size), valid_get_transforms(config.train_params.img_size)
+        train_transforms, valid_transforms = train_get_transforms(), valid_get_transforms()
 
-        config.train_dataset = BC_Dataset(tt, transform=train_transforms)
-        config.valid_dataset = BC_Dataset(vv, transform=valid_transforms)
+        config.train_dataset = BC_Dataset(tt, img_size=config.train_params.img_size, transform=train_transforms)
+        config.valid_dataset = BC_Dataset(vv, img_size=config.train_params.img_size, transform=valid_transforms)
         
         print(config.train_dataset[0]['img'].shape)
         print(config.train_dataset[0]['label'])
         
+        lr_monitor = LearningRateMonitor(logging_interval='step') # ['epoch', 'step']
+        checkpoints = ModelCheckpoint(config.output_dir + config.ver + '/', 
+                                    #   monitor='total_val_loss', 
+                                    monitor='total_val_f1_score',
+                                    mode='max', 
+                                    filename=f'5fold_{fold}__' + '{epoch}_{total_train_loss:.5f}_{total_train_f1_score:.5f}_{total_val_loss:.5f}_{total_val_f1_score:.5f}')
+        model = pl_Wrapper(config)
+        
         if config.gpu.mps:
-            lr_monitor = LearningRateMonitor(logging_interval='step') # ['epoch', 'step']
-            checkpoints = ModelCheckpoint(config.output_dir + config.ver + '/', 
-                                        #   monitor='total_val_loss', 
-                                        monitor='total_val_f1_score',
-                                        mode='max', 
-                                        filename=f'5fold_{fold}__' + '{epoch}_{total_train_loss:.5f}_{total_train_f1_score:.5f}_{total_val_loss:.5f}_{total_val_f1_score:.5f}')
-            model = pl_Wrapper(config)
             trainer = pl.Trainer(
                                 max_epochs=config.train_params.epochs, 
                                 accelerator='mps', 
@@ -75,40 +72,30 @@ def main(config):
                                 # gradient_clip_val=1000, gradient_clip_algorithm='value', # defalut : [norm, value]
                                 amp_backend='native', precision=16, # amp_backend default : native
                                 callbacks=[checkpoints, lr_monitor], 
-                                # logger=logger
                                 )
-            trainer.fit(model)
+            
+        else:
+            from pytorch_lightning.loggers import WandbLogger
+            logger = WandbLogger(name=f'{config.start_time}_{config.ver}_5fold_{fold}', 
+                                    project='cancer', 
+                                    config={key:config.__dict__[key] for key in config.__dict__.keys() if '__' not in key},
+                                    )
+            trainer = pl.Trainer(
+                                max_epochs=config.train_params.epochs, 
+                                accelerator='cuda', 
+                                devices=1,
+                                log_every_n_steps=30,
+                                # gradient_clip_val=1000, gradient_clip_algorithm='value', # defalut : [norm, value]
+                                amp_backend='native', precision=16, # amp_backend default : native
+                                callbacks=[checkpoints, lr_monitor], 
+                                logger=logger
+                                )
                                 
-
-        # else:
-        #     lr_monitor = LearningRateMonitor(logging_interval='step') # ['epoch', 'step']
-        #     checkpoints = ModelCheckpoint(args.OUTPUT_DIR + args.VER + '/', 
-        #                                 #   monitor='total_val_loss', 
-        #                                 monitor='total_val_f1_score',
-        #                                 mode='max', 
-        #                                 filename=f'5fold_{fold}__' + '{epoch}_{total_train_loss:.5f}_{total_train_f1_score:.5f}_{total_val_loss:.5f}_{total_val_f1_score:.5f}')
-                
-        #     model = PL_AD(args)
-        #     trainer = pl.Trainer(
-        #                             max_epochs=args.EPOCHS, 
-        #                             accelerator='gpu', 
-        #                             devices=1,
-        #                             log_every_n_steps=30,
-        #                             # gradient_clip_val=1000, gradient_clip_algorithm='value', # defalut : [norm, value]
-        #                             amp_backend='native', precision=16, # amp_backend default : native
-        #                             callbacks=[checkpoints, lr_monitor], 
-        #                             logger=logger
-        #                             ) 
-        #     trainer.fit(model)
+        trainer.fit(model)
         
         del model, trainer, 
-        # wandb.finish()
+        wandb.finish()
 
-        break
-
-    
-
-    
 
 if __name__ == '__main__':
 

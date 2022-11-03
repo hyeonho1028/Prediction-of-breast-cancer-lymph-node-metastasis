@@ -5,6 +5,7 @@
 open/
 models/
 lightning_logs/
+wandb/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

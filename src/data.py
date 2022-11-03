@@ -13,9 +13,9 @@ import albumentations as A
 
 from albumentations.pytorch import ToTensorV2
 
-def train_get_transforms(img_size):
+def train_get_transforms():
     return A.Compose([
-                    A.Resize(img_size, img_size),
+                    # A.Resize(img_size, img_size),
                     A.HorizontalFlip(p=0.5),
                     A.VerticalFlip(p=0.5),
                     
@@ -37,9 +37,9 @@ def train_get_transforms(img_size):
                     ToTensorV2()
                     ])
 
-def valid_get_transforms(img_size):
+def valid_get_transforms():
     return A.Compose([
-                    A.Resize(img_size, img_size),
+                    # A.Resize(img_size, img_size),
 
 
                     ToTensorV2()
@@ -47,14 +47,16 @@ def valid_get_transforms(img_size):
 
 
 class BC_Dataset(Dataset):
-    def __init__(self, df, transform=None):
+    def __init__(self, df, img_size=224, transform=None):
         self.img_path = df['img_path']
         self.labels = df['N_category']
+        self.img_size = img_size
         self.transform = transform
         self.imgs = []
 
         for img_path in tqdm(self.img_path):
             img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
+            img = self.resize(img)
             self.imgs.append(img)
 
     def __len__(self): 
@@ -74,3 +76,8 @@ class BC_Dataset(Dataset):
                 }
 
         return data
+    
+    def resize(self, img):
+        resize = A.Resize(self.img_size, self.img_size)
+        return resize(image=img)['image']
+        
