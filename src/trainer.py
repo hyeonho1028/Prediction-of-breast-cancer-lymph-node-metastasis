@@ -1,4 +1,4 @@
-from .models import CNNModel
+from .models import CNNModel, BreastCancerModel
 
 import os
 import numpy as np
@@ -21,11 +21,13 @@ class pl_Wrapper(pl.LightningModule):
         super(pl_Wrapper, self).__init__()
 
         self.config = args
-        self.model = CNNModel(args)
+        # self.model = CNNModel(args)
+
+        self.model = BreastCancerModel(args)
         self.criterion = nn.CrossEntropyLoss()
         
-    def forward(self, imgs):
-        output = self.model(imgs)
+    def forward(self, imgs, cat_features, num_features):
+        output = self.model(imgs, cat_features, num_features)
         return output
 
     def train_dataloader(self):
@@ -48,14 +50,17 @@ class pl_Wrapper(pl.LightningModule):
                             num_workers=0,
                             shuffle=False,
                             sampler=SequentialSampler(self.config.valid_dataset),
-                            drop_last=True,
+                            drop_last=False,
                             pin_memory=True,
                         )
         return loader
     
     def sharing_step(self, batch):
-        pred = self.forward(batch['img'])
-        
+        pred = self.forward(batch['img'], batch['cat_features'], batch['num_features'])
+        # softmax
+        # pred = torch.softmax(pred, dim=1)
+        # sigmoid
+        # pred = torch.sigmoid(pred)
         loss = self.criterion(pred, batch['label'])
         return pred, loss
 

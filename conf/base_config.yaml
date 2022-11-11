@@ -1,24 +1,32 @@
-ver: 'tfb0_baseline'
+ver: 'tfb0_str_sigmoid'
 model: 'CNN_Model'
 dataset: 'base'
 output_dir: 'models/'
 data_path: '.open/'
 gpu:
-  mps: False
+  mps: True
   use: True
   id: 0
 train_params:
   seed: 42
-  img_size: 512
-  epochs: 30
+  img_size: 224
+  epochs: 100
   batch_size: 32
   val_batch_size: 64
-  init_lr: 1e-3
+  init_lr: 0.00025 # 2e-3
   min_lr: 1e-6
   weight_decay: 0.0
-  sch_cycle: 3
+  sch_cycle: 10
   folds: 5
-  selected_folds: [0,1,2,3,4]
+  # selected_folds: [0]
+  selected_folds: [1,2,3,4]
+  cat_features: [
+                '진단명', '암의 위치', '암의 개수', 'NG', 'HG', 'HG_score_1', 'HG_score_2', 'HG_score_3',
+                'DCIS_or_LCIS_여부', 'DCIS_or_LCIS_type', 'T_category', 'ER',
+                'PR', 'HER2',
+                'HER2_IHC', 'HER2_SISH', 'BRCA_mutation']
+  numeric_features: [
+                    '나이', '암의 장경', 'KI-67_LI_percent', 'HER2_SISH_ratio', 'ER_Allred_score', 'PR_Allred_score']
 data:
-  num_workers: 0
+  num_workers: 1
   num_classes: 2
