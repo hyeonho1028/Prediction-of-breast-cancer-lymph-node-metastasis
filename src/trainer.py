@@ -38,7 +38,7 @@ class pl_Wrapper(pl.LightningModule):
                             shuffle=False,
                             sampler=RandomSampler(self.config.train_dataset),
                             # sampler=WeightedRandomSampler(self.config.samples_weight, len(self.config.samples_weight)),
-                            drop_last=True,
+                            drop_last=False,
                             pin_memory=True,
                         )
         return loader
@@ -76,8 +76,9 @@ class pl_Wrapper(pl.LightningModule):
         preds = torch.cat([x['pred'] for x in outputs]).numpy()
         labels = torch.cat([x['label'] for x in outputs]).numpy().reshape(-1)
         
-        preds = np.argmax(preds, 1)
-        f1 = f1_score(labels, preds, average='weighted')
+        # preds = np.argmax(preds, 1)
+        preds = np.round(preds[:, 1])
+        f1 = f1_score(labels, preds, average='macro')
         
         self.log("total_train_loss", avg_loss, logger=True)
         self.log("total_train_f1_score", f1, logger=True)
@@ -94,8 +95,9 @@ class pl_Wrapper(pl.LightningModule):
         preds = torch.cat([x['pred'] for x in outputs]).numpy()
         labels = torch.cat([x['label'] for x in outputs]).numpy().reshape(-1)
         
-        preds = np.argmax(preds, 1)
-        f1 = f1_score(labels, preds, average='weighted')
+        # preds = np.argmax(preds, 1)
+        preds = np.round(preds[:, 1])
+        f1 = f1_score(labels, preds, average='macro')
         
         self.log("total_val_loss", avg_loss, logger=True)
         self.log("total_val_f1_score", f1, logger=True)

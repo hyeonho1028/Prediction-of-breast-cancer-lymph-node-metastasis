@@ -21,7 +21,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning import loggers as pl_loggers
 
 
-from src import obj, seed_everything, pl_Wrapper
+from src import obj, seed_everything, dict_flatten, pl_Wrapper
 
 # warnings
 import warnings
@@ -78,8 +78,8 @@ def main(config):
         print('start fold :', fold)
         config.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
         
-        tt = df_train.loc[splits[fold][0]].reset_index(drop=True)#[:32]
-        vv = df_train.loc[splits[fold][1]].reset_index(drop=True)#[:32]
+        tt = df_train.loc[splits[fold][0]].reset_index(drop=True)[:32]
+        vv = df_train.loc[splits[fold][1]].reset_index(drop=True)[:32]
         train_transforms, valid_transforms = train_get_transforms(config.train_params.img_size), valid_get_transforms()
 
         config.train_dataset = BC_Dataset(config, tt, img_size=config.train_params.img_size, transform=train_transforms)
@@ -113,6 +113,10 @@ def main(config):
             
         else:
             from pytorch_lightning.loggers import WandbLogger
+            
+            dict_flatten
+            
+            
             logger = WandbLogger(name=f'{config.start_time}_{config.ver}_5fold_{fold}', 
                                     project='cancer', 
                                     config={key:config.__dict__[key] for key in config.__dict__.keys() if '__' not in key},
