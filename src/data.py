@@ -58,7 +58,7 @@ class BC_Dataset(Dataset):
         for img_path in tqdm(self.img_path):
             img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
             img = self.resize(img)
-            img = self.normalize(img)
+            # img = self.normalize(self.resize(img))
             self.imgs.append(img)
 
     def __len__(self): 
@@ -95,5 +95,7 @@ class BC_Dataset(Dataset):
                                             std=(0.229, 0.224, 0.225), 
                                             max_pixel_value=255.0, 
                                             p=1.0)
+    
+        # normalize = A.transforms.Normalize(self.img_size, self.img_size)
         return normalize(image=img)['image']
         

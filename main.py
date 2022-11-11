@@ -130,7 +130,7 @@ def main(config):
                                 
         trainer.fit(model)
         
-        del model, trainer, 
+        del model, trainer
         wandb.finish()
 
 

@@ -19,7 +19,7 @@ train_params:
   sch_cycle: 10
   folds: 5
   # selected_folds: [0]
-  selected_folds: [1,2,3,4]
+  selected_folds: [0,1,2,3,4]
   cat_features: [
                 '진단명', '암의 위치', '암의 개수', 'NG', 'HG', 'HG_score_1', 'HG_score_2', 'HG_score_3',
                 'DCIS_or_LCIS_여부', 'DCIS_or_LCIS_type', 'T_category', 'ER',
