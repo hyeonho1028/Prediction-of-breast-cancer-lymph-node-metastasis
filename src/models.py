@@ -3,6 +3,7 @@ import timm
 import torch
 import torch.nn as nn
 
+from typing import Optional
 
 class Str_Embedding(nn.Module):
     def __init__(self, args):
@@ -40,8 +41,8 @@ class ImageVectorizer(nn.Module):
         super().__init__()
         self.config = args
         chans = 3
-        self.model = timm.create_model(model_name='tf_efficientnetv2_s_in21k', pretrained=True, in_chans=chans)
-        # tf_efficientnet_b0_ns, efficientnet_b1_pruned, vit_base_patch16_224, tf_efficientnetv2_s_in21k
+        self.model = timm.create_model(model_name='tf_efficientnetv2_l_in21k', pretrained=True, in_chans=chans)
+        # tf_efficientnet_b0_ns, tf_efficientnetv2_b0, efficientnet_b1_pruned, vit_base_patch16_224, tf_efficientnetv2_s_in21k
 
         if hasattr(self.model, "fc"):
             nb_ft = self.model.fc.in_features
@@ -65,8 +66,12 @@ class ImageVectorizer(nn.Module):
     def forward(self, x):
         bs = x.size(0)
         img_vector = self.model(x)
+        
         out = self.linaer(img_vector.permute(0,2,3,1)).view(bs, -1, self.config.embedding_size)
         return out
+
+
+
 
 class BreastCancerModel(nn.Module):
     def __init__(self, args):
@@ -74,15 +79,53 @@ class BreastCancerModel(nn.Module):
 
         self.img_vectorizer = ImageVectorizer(args)
         self.str_embedding = Str_Embedding(args)
+        
+        self.total_embedding = args.embedding_size*(16*16+args.train_params.num_total_features)
+        # img : 512 : 16*16+23
+        # img : 224 : 7*7+23
+        
+        self.layernorm = nn.LayerNorm(self.total_embedding)
 
-        self.fc = nn.Linear(args.embedding_size*72, args.data.num_classes)
+        self.dropout = nn.Dropout(0.5)
+        self.dropouts = nn.ModuleList([self.dropout for _ in range(5)])
+        self.fc = nn.Sequential(
+            # nn.Linear(args.embedding_size*(16*16+23), 1024),
+            # nn.Linear(1024, args.data.num_classes)
+            nn.Linear(self.total_embedding, args.data.num_classes)
+        )
+        self.init_weights()
+        
+    def init_weights(self, module: Optional[nn.Module] = None):
+        if module is None:
+            self.apply(self.init_weights)
+        # elif isinstance(module, nn.Embedding):
+        #     nn.init.normal_(module.weight, std=self.config.embed_init_std)
+        # elif isinstance(module, SiDEmbeddings):
+        #     nn.init.normal_(module.numerical_direction, std=self.config.embed_init_std)
+        #     nn.init.normal_(module.numerical_anchor, std=self.config.embed_init_std)
+        elif isinstance(module, nn.Linear):
+            nn.init.kaiming_uniform_(module.weight, 5 ** 0.5)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.LayerNorm):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
         
     def forward(self, img, cat_features, num_features):
         img_vector = self.img_vectorizer(img)
         str_vector = self.str_embedding(cat_features, num_features)
-
+        
         concat = torch.cat([img_vector, str_vector], dim=1).flatten(1)
-        output = self.fc(concat)
+        concat = self.layernorm(concat)
+        
+        for i, dropout in enumerate(self.dropouts):
+            if i==0:
+                output = self.fc(dropout(concat))
+            else:
+                output += self.fc(dropout(concat))
+        else:
+            output /= len(self.dropouts)
+        # output = self.fc(concat)
         return output
 
 

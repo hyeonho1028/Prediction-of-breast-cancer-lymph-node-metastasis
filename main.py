@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import copy
 import yaml
 import wandb
 import argparse
@@ -61,7 +62,16 @@ def main(config):
         df_test[col]+=1
 
     df_train[['ER', 'PR']] = df_train[['ER', 'PR']].fillna(0)
+    
+    ############## feature engineering
+    df_train['due_date'] = 2022 - pd.to_datetime(df_train['수술연월일']).dt.year
+    df_test['due_date'] = 2022 - pd.to_datetime(df_test['수술연월일']).dt.year
 
+    df_train['date_year'] = pd.to_datetime(df_train['수술연월일']).dt.year
+    df_test['date_year'] = pd.to_datetime(df_test['수술연월일']).dt.year
+    
+    config.train_params.numeric_features += ['due_date', 'date_year']
+    
     for col in config.train_params.cat_features:
         tmp_dict = {val:idx for idx, val in enumerate(np.unique(df_train[col]))}
         df_train[col] = df_train[col].map(tmp_dict)
@@ -69,6 +79,7 @@ def main(config):
 
     config.train_params.cat_features_ls = df_train[config.train_params.cat_features].nunique().values.tolist()
     config.train_params.num_numeric_features = len(config.train_params.numeric_features)
+    config.train_params.num_total_features = config.train_params.num_numeric_features + len(config.train_params.cat_features)
     config.embedding_size = 1024
 
     skf = StratifiedKFold(n_splits=config.train_params.folds, random_state=config.train_params.seed, shuffle=True)
@@ -78,12 +89,12 @@ def main(config):
         print('start fold :', fold)
         config.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
         
-        tt = df_train.loc[splits[fold][0]].reset_index(drop=True)[:32]
-        vv = df_train.loc[splits[fold][1]].reset_index(drop=True)[:32]
+        tt = df_train.loc[splits[fold][0]].reset_index(drop=True)#[:32]
+        vv = df_train.loc[splits[fold][1]].reset_index(drop=True)#[:32]
         train_transforms, valid_transforms = train_get_transforms(config.train_params.img_size), valid_get_transforms()
 
-        config.train_dataset = BC_Dataset(config, tt, img_size=config.train_params.img_size, transform=train_transforms)
-        config.valid_dataset = BC_Dataset(config, vv, img_size=config.train_params.img_size, transform=valid_transforms)
+        config.train_dataset = BC_Dataset(config, tt, transform=train_transforms)
+        config.valid_dataset = BC_Dataset(config, vv, transform=valid_transforms)
         
         print(config.train_dataset[0]['img'].shape)
         print(config.train_dataset[0]['label'])
@@ -113,14 +124,14 @@ def main(config):
             
         else:
             from pytorch_lightning.loggers import WandbLogger
-            
-            dict_flatten
-            
+            tmp = copy.copy(config.__dict__)
+            for k in ['gpu', 'train_params', 'data']:
+                tmp[k] = tmp[k].__dict__
+            else:
+                tmp = dict_flatten(tmp)
             
             logger = WandbLogger(name=f'{config.start_time}_{config.ver}_5fold_{fold}', 
-                                    project='cancer', 
-                                    config={key:config.__dict__[key] for key in config.__dict__.keys() if '__' not in key},
-                                    )
+                                    project='cancer', config=tmp)
             trainer = pl.Trainer(
                                 max_epochs=config.train_params.epochs, 
                                 accelerator='cuda', 
@@ -167,7 +178,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-    with open('conf/'+args.conf_path) as f:
+    with open('conf/'+args.conf_path, encoding='UTF-8') as f:
         conf_yaml = yaml.safe_load(f)
 
     config = obj(conf_yaml)

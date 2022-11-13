@@ -27,10 +27,18 @@ def train_get_transforms(img_size):
                     #         A.MedianBlur(blur_limit=5),
                     #         A.GaussianBlur(blur_limit=5),
                     #         A.GaussNoise(var_limit=(5.0, 30.0))], p=0.5),
+                    A.OneOf([
+                        A.ColorJitter(brightness=0.2),
+                        A.ColorJitter(contrast=0.2),
+                        A.ColorJitter(saturation=0.2),
+                        A.ColorJitter(hue=0.2),],
+                        p=0.5),
+                    
                     
                     # A.OneOf([
                     #     A.GridDropout(),
                     #     A.Cutout(max_h_size=int(img_size*0.1), max_w_size=int(img_size*0.1), num_holes=5)], p=0.8),
+                    A.CoarseDropout(p=0.5),
                     A.Cutout(max_h_size=int(img_size*0.1), max_w_size=int(img_size*0.1), num_holes=5, p=0.8),
 
                     ToTensorV2()
@@ -46,10 +54,10 @@ def valid_get_transforms():
 
 
 class BC_Dataset(Dataset):
-    def __init__(self, config, df, img_size=224, transform=None):
+    def __init__(self, config, df, transform=None):
         self.img_path = df['img_path']
         self.labels = df['N_category']
-        self.img_size = img_size
+        self.img_size = config.train_params.img_size
         self.transform = transform
         self.cat_features = df[config.train_params.cat_features].values
         self.num_features = df[config.train_params.numeric_features].values
@@ -58,7 +66,7 @@ class BC_Dataset(Dataset):
         for img_path in tqdm(self.img_path):
             img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
             img = self.resize(img)
-            # img = self.normalize(self.resize(img))
+            img = self.normalize(img)
             self.imgs.append(img)
 
     def __len__(self): 
@@ -90,9 +98,14 @@ class BC_Dataset(Dataset):
 
     def normalize(self, img):
         # imagenet
+        # normalize = A.transforms.Normalize(
+        #                                     mean=(0.485, 0.456, 0.406), 
+        #                                     std=(0.229, 0.224, 0.225), 
+        #                                     max_pixel_value=255.0, 
+        #                                     p=1.0)
         normalize = A.transforms.Normalize(
-                                            mean=(0.485, 0.456, 0.406), 
-                                            std=(0.229, 0.224, 0.225), 
+                                            mean=(0.5, 0.5, 0.5), 
+                                            std=(0.5, 0.5, 0.5), 
                                             max_pixel_value=255.0, 
                                             p=1.0)
     

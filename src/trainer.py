@@ -57,11 +57,15 @@ class pl_Wrapper(pl.LightningModule):
     
     def sharing_step(self, batch):
         pred = self.forward(batch['img'], batch['cat_features'], batch['num_features'])
+        
+        loss = self.criterion(pred, batch['label'])
+        
+        # sigmoid
+        pred = torch.sigmoid(pred)
+        
         # softmax
         # pred = torch.softmax(pred, dim=1)
-        # sigmoid
-        # pred = torch.sigmoid(pred)
-        loss = self.criterion(pred, batch['label'])
+        
         return pred, loss
 
     def training_step(self, train_batch, batch_idx):
