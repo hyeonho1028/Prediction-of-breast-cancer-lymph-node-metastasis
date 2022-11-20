@@ -87,7 +87,7 @@ def main(config):
     
     for fold in config.train_params.selected_folds:
         print('start fold :', fold)
-        config.start_time = time.strftime('%Y-%m-%d_%I:%M', time.localtime(time.time()))
+        config.start_time = time.strftime('%Y-%m-%d_%I: %M', time.localtime(time.time()))
         
         tt = df_train.loc[splits[fold][0]].reset_index(drop=True)#[:32]
         vv = df_train.loc[splits[fold][1]].reset_index(drop=True)#[:32]
